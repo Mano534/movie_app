@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:movie_app/modules/movie.module.dart';
+import 'package:movie_app/screens/movie.dart';
 import 'package:video_player/video_player.dart';
 
 class MoiveParallexeEffect extends StatefulWidget {
@@ -15,6 +16,7 @@ class MoiveParallexeEffect extends StatefulWidget {
 
 class _MoiveParallexeEffectState extends State<MoiveParallexeEffect> {
   late PageController pageController;
+  int pageCount = 0;
   @override
   void initState() {
     super.initState();
@@ -23,8 +25,8 @@ class _MoiveParallexeEffectState extends State<MoiveParallexeEffect> {
 
   @override
   void dispose() {
-    super.dispose();
     pageController.dispose();
+    super.dispose();
   }
 
   @override
@@ -33,40 +35,50 @@ class _MoiveParallexeEffectState extends State<MoiveParallexeEffect> {
       controller: pageController,
       itemCount: widget.movies.length,
       itemBuilder: (context, index) {
-        return VideoCard(moviesAsset: widget.movies[index].coverPath);
+        return VideoCard(
+            moviesAsset: widget.movies[index],
+            selectedPage: pageCount == index);
+      },
+      onPageChanged: (value) {
+        setState(() {
+          pageCount = value;
+        });
       },
     );
   }
 }
 
 class VideoCard extends StatefulWidget {
-  final String moviesAsset;
-
-  const VideoCard({super.key, required this.moviesAsset});
+  final Movie moviesAsset;
+  final bool selectedPage;
+  const VideoCard(
+      {super.key, required this.moviesAsset, required this.selectedPage});
 
   @override
   State<VideoCard> createState() => _VideoCardState();
 }
 
 class _VideoCardState extends State<VideoCard> {
-  late VideoPlayerController _videoPlayerController;
+  late VideoPlayerController? _videoPlayerController;
+  final GlobalKey _videoGolobalKey = GlobalKey();
   @override
   void initState() {
     super.initState();
-    _videoPlayerController = VideoPlayerController.asset(widget.moviesAsset);
-    _videoPlayerController
+    _videoPlayerController = VideoPlayerController.asset(widget.moviesAsset.coverPath);
+    _videoPlayerController!
       ..addListener(() {
         setState(() {});
       })
       ..setLooping(true)
-      ..setVolume(1000)
+      ..setVolume(5000)
       ..initialize().then((value) => setState(() {}))
       ..play();
   }
 
   @override
   void dispose() {
-    _videoPlayerController.dispose();
+
+    _videoPlayerController!.dispose();
     super.dispose();
   }
 
@@ -82,14 +94,109 @@ class _VideoCardState extends State<VideoCard> {
       ], borderRadius: BorderRadius.circular(16));
     }
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: _pageDecoration(),
-      child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: AspectRatio(
-              aspectRatio: _videoPlayerController.value.aspectRatio,
-              child: VideoPlayer(_videoPlayerController))),
+    _selectedMargin() {
+      return widget.selectedPage
+          ? const EdgeInsets.symmetric(horizontal: 5, vertical: 0)
+          : const EdgeInsets.symmetric(horizontal: 5, vertical: 30);
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
+      child: InkWell(
+        onTap: () {
+          _videoPlayerController!.dispose();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => MovieScreen(movie : widget.moviesAsset,))
+            
+            );
+          },
+        child: Container(
+          margin: _selectedMargin(),
+          decoration: _pageDecoration(),
+          child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Flow(
+                delegate: ParallaxFlowDelegate(
+                    scrollable: Scrollable.of(context),
+                    listItemContext: context,
+                    backgroundImageKey: _videoGolobalKey),
+                children: [
+                  AspectRatio(
+                      aspectRatio: _videoPlayerController!.value.aspectRatio,
+                      child: VideoPlayer(
+                        _videoPlayerController!,
+                        key: _videoGolobalKey,
+                      )),
+                ],
+              )),
+        ),
+      ),
     );
+  }
+}
+
+class ParallaxFlowDelegate extends FlowDelegate {
+  ParallaxFlowDelegate({
+    required this.scrollable,
+    required this.listItemContext,
+    required this.backgroundImageKey,
+  }) : super(repaint: scrollable.position);
+
+  final ScrollableState scrollable;
+  final BuildContext listItemContext;
+  final GlobalKey backgroundImageKey;
+
+  @override
+  BoxConstraints getConstraintsForChild(int i, BoxConstraints constraints) {
+    return BoxConstraints.tightFor(
+      height: constraints.maxHeight,
+    );
+  }
+
+  @override
+  void paintChildren(FlowPaintingContext context) {
+    // Calculate the position of this list item within the viewport.
+    final scrollableBox = scrollable.context.findRenderObject() as RenderBox;
+    final listItemBox = listItemContext.findRenderObject() as RenderBox;
+    final listItemOffset = listItemBox.localToGlobal(
+      listItemBox.size.topCenter(Offset.zero),
+      ancestor: scrollableBox,
+    );
+
+    // Determine the percent position of this list item within the
+    // scrollable area.
+    final viewportDimension = scrollable.position.viewportDimension;
+    final scrollFraction =
+        (listItemOffset.dx / viewportDimension).clamp(0.0, 1.0);
+
+    // Calculate the horizontal alignment of the background
+    // based on the scroll percent.
+    final horizontalAlignment = Alignment(scrollFraction * 2 - 1, 0);
+
+    // Convert the background alignment into a pixel offset for
+    // painting purposes.
+    final backgroundSize =
+        (backgroundImageKey.currentContext!.findRenderObject() as RenderBox)
+            .size;
+    final listItemSize = context.size;
+    final childRect = horizontalAlignment.inscribe(
+      backgroundSize,
+      Offset.zero & listItemSize,
+    );
+
+    // Paint the background.
+    context.paintChild(
+      0,
+      transform:
+          Transform.translate(offset: Offset(childRect.left, 0)).transform,
+    );
+  }
+
+  @override
+  bool shouldRepaint(ParallaxFlowDelegate oldDelegate) {
+    return scrollable != oldDelegate.scrollable ||
+        listItemContext != oldDelegate.listItemContext ||
+        backgroundImageKey != oldDelegate.backgroundImageKey;
   }
 }
