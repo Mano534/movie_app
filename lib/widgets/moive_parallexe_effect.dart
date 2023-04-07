@@ -61,23 +61,29 @@ class VideoCard extends StatefulWidget {
 class _VideoCardState extends State<VideoCard> {
   late VideoPlayerController? _videoPlayerController;
   final GlobalKey _videoGolobalKey = GlobalKey();
+  late VideoPlayer video;
   @override
   void initState() {
     super.initState();
-    _videoPlayerController = VideoPlayerController.asset(widget.moviesAsset.coverPath);
+    _videoPlayerController =
+        VideoPlayerController.asset(widget.moviesAsset.coverPath, videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true));
     _videoPlayerController!
       ..addListener(() {
         setState(() {});
       })
       ..setLooping(true)
-      ..setVolume(5000)
-      ..initialize().then((value) => setState(() {}))
+      ..setVolume(0)
+      ..initialize().then((_) => setState(() {}))
       ..play();
+
+    video = VideoPlayer(
+      _videoPlayerController!,
+      key: _videoGolobalKey,
+    );
   }
 
   @override
   void dispose() {
-
     _videoPlayerController!.dispose();
     super.dispose();
   }
@@ -102,15 +108,17 @@ class _VideoCardState extends State<VideoCard> {
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 500),
-      child: InkWell(
+      child: InkWell( 
+        
         onTap: () {
           _videoPlayerController!.dispose();
-            Navigator.push(
+          Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => MovieScreen(movie : widget.moviesAsset,))
-            
-            );
-          },
+              MaterialPageRoute(
+                  builder: (context) => MovieScreen(
+                        movie: widget.moviesAsset,
+                      )));
+        },
         child: Container(
           margin: _selectedMargin(),
           decoration: _pageDecoration(),
@@ -124,10 +132,7 @@ class _VideoCardState extends State<VideoCard> {
                 children: [
                   AspectRatio(
                       aspectRatio: _videoPlayerController!.value.aspectRatio,
-                      child: VideoPlayer(
-                        _videoPlayerController!,
-                        key: _videoGolobalKey,
-                      )),
+                      child: video),
                 ],
               )),
         ),
@@ -136,6 +141,7 @@ class _VideoCardState extends State<VideoCard> {
   }
 }
 
+//parallexe effect widget
 class ParallaxFlowDelegate extends FlowDelegate {
   ParallaxFlowDelegate({
     required this.scrollable,
